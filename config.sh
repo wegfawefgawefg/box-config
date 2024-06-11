@@ -187,25 +187,36 @@ setup_neovim() {
         return 0
     fi
 
+    NVIM_DL_URL="https://github.com/neovim/neovim/releases/download/v0.10.0/nvim-macos-x86_64.tar.gz"
+    NVIM_TAR="nvim-macos-x86_64.tar.gz"
+    NVIM_DIR="/usr/local/nvim"
+    NVIM_CONFIG_INIT_LUA="./config_files/neovim/init.lua"
+
     echo -n "Checking if Neovim is installed..."
-    if is_installed neovim; then
-        echo -e "${GREEN}already installed.${NC}"
+    if command -v nvim > /dev/null; then
+        echo -e "\033[0;32malready installed.\033[0m"
     else
-        echo -e "${YELLOW}not installed.${NC}"
-        echo "Installing Neovim..."
-        sudo apt update
-        sudo apt install -y neovim
-        echo -e "${GREEN}Neovim installed.${NC}"
+        echo -e "\033[0;33mnot installed.\033[0m"
+        echo "Downloading Neovim..."
+        curl -LO "$NVIM_DL_URL"
+        echo "Extracting Neovim..."
+        sudo mkdir -p "$NVIM_DIR"
+        sudo tar -xzf "$NVIM_TAR" -C "$NVIM_DIR" --strip-components=1
+        rm "$NVIM_TAR"
+        
+        echo "Adding Neovim to PATH..."
+        export PATH="$NVIM_DIR/bin:$PATH"
+        echo 'export PATH="/usr/local/nvim/bin:$PATH"' >> "$HOME/.bashrc"
+        echo -e "\033[0;32mNeovim installed.\033[0m"
     fi
 
     # Basic Neovim settings
-    NVIM_CONFIG="$HOME/.config/nvim/init.vim"
-    mkdir -p "$(dirname "$NVIM_CONFIG")"
-    echo "set number" > "$NVIM_CONFIG"
+    NVIM_CONFIG="$HOME/.config/nvim"
+    mkdir -p "$NVIM_CONFIG"
+    cp "$NVIM_CONFIG_INIT_LUA" "$NVIM_CONFIG/init.lua"
 
-    # Setup lazy plugin manager (e.g., lazy.nvim)
-    echo "Installing lazy.nvim plugin manager..."
-    # Add your lazy.nvim installation and configuration here
+    # announce to run :checkhealth lazy
+    echo "Run :checkhealth lazy in Neovim to check lazy plugin installations."
 
     echo "Neovim setup complete."
 }
@@ -473,20 +484,20 @@ main() {
     setup_i3
     setup_aliases
     setup_neovim
-    setup_git
-    setup_nvm
-    setup_python
-    setup_c_build_tools
-    setup_go
-    setup_rust
-    setup_tmux
-    setup_lf
-    setup_screenfetch
-    setup_wget
-    setup_vlc
-    setup_discord
-    setup_mpv
-    setup_vim_mode
+    # setup_git
+    # setup_nvm
+    # setup_python
+    # setup_c_build_tools
+    # setup_go
+    # setup_rust
+    # setup_tmux
+    # setup_lf
+    # setup_screenfetch
+    # setup_wget
+    # setup_vlc
+    # setup_discord
+    # setup_mpv
+    # setup_vim_mode
 }
 
 main
