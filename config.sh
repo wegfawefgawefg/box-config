@@ -161,19 +161,30 @@ setup_i3() {
     I3_CONFIG="$HOME/.config/i3/config" # Path to i3 config
     mkdir -p "$(dirname "$I3_CONFIG")" # Ensure i3 config directory exists
 
-    XRANDR_CMD="xrandr --output DP-2 --mode 1920x1080 --rate 144 --output DP-4 --mode 1920x1080 --rate 144 --pos 1920x400 --rotate left"
-    # if the command is already in there skip this section
+    START="# WEG_START: Screen Conf"
+    END="# WEG_END: Screen Conf"
+    XRANDR_CMD_ONE="xrandr --output DP-2 --mode 1920x1080 --rate 144 --pos 0x436 --rotate normal"
+    XRANDR_CMD_TWO="xrandr --output DP-4 --mode 1920x1080 --rate 144 --pos 1920x0 --rotate left"
+    
+    # Construct the replacement block
+    REPLACEMENT="$START\nexec --no-startup-id $XRANDR_CMD_ONE\nexec --no-startup-id $XRANDR_CMD_TWO\n$END"
+
+    # Check if the block is already in the config and replace it if necessary
     echo -n "Checking if multi monitor xrandr command is in i3 config..."
-    if grep -q "$XRANDR_CMD" "$I3_CONFIG"; then
-       echo -e "${GREEN}already in i3 config.${NC}"
+    if grep -q "$START" "$I3_CONFIG"; then
+        # Use sed to replace the block
+        sed -i "/$START/,/$END/c\\$REPLACEMENT" "$I3_CONFIG"
+        echo -e "${GREEN}Multi monitor xrandr command updated in i3 config.${NC}"
     else 
         # Add xrandr command to i3 config
-        read -p "Do you have multiple monitors? (Y/n): " MULTI_MON
+        read -p "Do you have multiple monitors? (y/N): " MULTI_MON
         MULTI_MON=${MULTI_MON:-n}
         if [[ "$MULTI_MON" =~ ^[Yy]$ ]]; then
-            echo "exec --no-startup-id $XRANDR_CMD" >> "$I3_CONFIG"
+            echo -e "\n$REPLACEMENT" >> "$I3_CONFIG"
+            echo -e "${GREEN}Multi monitor xrandr command added to i3 config.${NC}"
+        else
+            echo -e "${YELLOW}Skipping multi monitor xrandr setup.${NC}"
         fi
-        echo -e "${GREEN}Multi monitor xrandr command added to i3 config.${NC}"
     fi
 
     echo "DE setup complete."
@@ -181,22 +192,68 @@ setup_i3() {
 
 setup_neovim() {
     read -p "Do you want to setup Neovim? Y/n: " SETUP_NVIM
-    SETUP_NVIM=${SETUP_NVIM:-Y}
+    SETUP_NVIM=${SETUP_NVIM:-N}
     if [[ "$SETUP_NVIM" =~ ^[Nn]$ ]]; then
         echo "    skipping Neovim setup."
         return 0
     fi
 
-    NVIM_DL_URL="https://github.com/neovim/neovim/releases/download/v0.10.0/nvim-macos-x86_64.tar.gz"
-    NVIM_TAR="nvim-macos-x86_64.tar.gz"
+    NVIM_DL_URL="https://github.com/neovim/neovim/releases/download/v0.10.0/nvim-linux64.tar.gz"
+    NVIM_TAR="nvim-linux64.tar.gz"
     NVIM_DIR="/usr/local/nvim"
     NVIM_CONFIG_INIT_LUA="./config_files/neovim/init.lua"
+    NVIM_CONFIG_DIR="$HOME/.config/nvim"
 
-    echo -n "Checking if Neovim is installed..."
-    if command -v nvim > /dev/null; then
-        echo -e "\033[0;32malready installed.\033[0m"
+    echo "Removing any existing Neovim installations..."
+    sudo apt-get remove --purge -y neovim
+
+    # Check if Neovim was installed via apt and remove it
+    echo -n "Checking if Neovim is installed via apt..."
+    if dpkg -l | grep -q neovim; then
+        echo -e "${YELLOW}installed via apt.${NC}"
+        sudo apt-get remove --purge -y neovim
+        echo -e "${GREEN}Neovim removed.${NC}"
     else
-        echo -e "\033[0;33mnot installed.\033[0m"
+        echo -e "${GREEN}not installed via apt.${NC}"
+    fi
+
+    echo -n "Checking if Neovim is installed manually via compilation, etc..."
+    if command -v nvim > /dev/null; then
+        echo -e "${GREEN}already installed.${NC}"
+        version=$(nvim --version | head -n 1 | cut -d ' ' -f 2)
+        echo "Neovim version: $version"
+        TargetVersion="v0.10.0"
+        if [ "$version" == "$TargetVersion" ]; then
+            echo -e "\033[0;32mCorrect version installed.\033[0m"
+        else
+            echo -e "\033[0;33mIncorrect version installed.\033[0m"
+            # prompt to see if they would like to remove the old version and install the new one
+            read -p "Would you like to install the correct version? Y/n: " INSTALL_NVIM
+            INSTALL_NVIM=${INSTALL_NVIM:-Y}
+            if [[ "$INSTALL_NVIM" =~ ^[Yy]$ ]]; then
+                # Remove manually compiled Neovim files
+                echo "Removing old Neovim..."
+                sudo rm -rf /usr/local/bin/nvim
+                sudo rm -rf /usr/local/share/nvim
+                sudo rm -rf /usr/local/lib/nvim
+                sudo rm -rf /usr/local/share/man/man1/nvim.1
+                sudo rm -rf /usr/local/share/doc/nvim
+
+                echo "Downloading Neovim..."
+                curl -LO "$NVIM_DL_URL"
+                echo "Extracting Neovim..."
+                sudo mkdir -p "$NVIM_DIR"
+                sudo tar -xzf "$NVIM_TAR" -C "$NVIM_DIR" --strip-components=1
+                rm "$NVIM_TAR"
+                
+                echo "Adding Neovim to PATH..."
+                export PATH="$NVIM_DIR/bin:$PATH"
+                echo 'export PATH="/usr/local/nvim/bin:$PATH"' >> "$HOME/.bashrc"
+                echo -e "\033[0;32mNeovim installed.\033[0m"
+            fi
+        fi
+    else
+        echo -e "${YELLOW}not installed.${NC}"
         echo "Downloading Neovim..."
         curl -LO "$NVIM_DL_URL"
         echo "Extracting Neovim..."
@@ -210,13 +267,10 @@ setup_neovim() {
         echo -e "\033[0;32mNeovim installed.\033[0m"
     fi
 
-    # Basic Neovim settings
-    NVIM_CONFIG="$HOME/.config/nvim"
-    mkdir -p "$NVIM_CONFIG"
-    cp "$NVIM_CONFIG_INIT_LUA" "$NVIM_CONFIG/init.lua"
-
-    # announce to run :checkhealth lazy
-    echo "Run :checkhealth lazy in Neovim to check lazy plugin installations."
+    # Neovim configuration
+    echo "Creating Neovim configuration..."
+    mkdir -p "$NVIM_CONFIG_DIR"
+    cp "$NVIM_CONFIG_INIT_LUA" "$NVIM_CONFIG_DIR/init.lua"
 
     echo "Neovim setup complete."
 }

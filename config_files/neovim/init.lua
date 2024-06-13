@@ -15,20 +15,40 @@ require("lazy").setup({
   {
     "neovim/nvim-lspconfig",
     config = function()
-      require("lspconfig").pyright.setup({})
+      require('lspconfig').ruff.setup {}
     end,
   },
   -- Treesitter for better syntax highlighting
   {
     "nvim-treesitter/nvim-treesitter",
-    run = ":TSUpdate",
-    config = function()
-      require("nvim-treesitter.configs").setup {
-        ensure_installed = { "python" },
-        highlight = { enable = true },
-      }
-    end,
-  },
+    build = ":TSUpdate",
+    config = function () 
+      local configs = require("nvim-treesitter.configs")
+
+      configs.setup({
+          ensure_installed = { 
+            "c", 
+            -- "python", 
+            "rust", "lua", 
+            "vim", "vimdoc", "query", "elixir", 
+            "heex", "javascript", "html" },
+          sync_install = false,
+          auto_install = true,
+          highlight = { enable = true },
+          indent = { enable = true },  
+        })
+    end
+ },
+  -- {
+  --   "nvim-treesitter/nvim-treesitter",
+  --   run = ":TSUpdate",
+  --   config = function()
+  --     require("nvim-treesitter.configs").setup {
+  --       ensure_installed = { "python" },
+  --       highlight = { enable = true },
+  --     }
+  --   end,
+  -- },
   -- Ruff integration
   {
     "mfussenegger/nvim-lint",
