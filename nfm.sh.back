@@ -1,0 +1,139 @@
+#!/bin/bash
+
+: <<'DOC_COMMENT'
+Nerd Font Manager Script
+
+This script provides functionality to manage Nerd Fonts and configure i3 window manager and xterm to use these fonts.
+
+Usage:
+  ./nerdfontmanager.sh fromurl <URL_to_Nerd_Font_Zip>
+    Downloads and installs the Nerd Font from the specified URL.
+
+  ./nerdfontmanager.sh list
+    Lists all installed Nerd Fonts.
+
+  ./nerdfontmanager.sh set <Font_Name>
+    Sets the specified Nerd Font in the i3 config and xterm.
+
+  ./nerdfontmanager.sh choose
+    Lists all installed Nerd Fonts and allows you to choose one interactively to set in the i3 config and xterm.
+
+  ./nerdfontmanager.sh help
+    Displays this help message.
+DOC_COMMENT
+
+# Constants
+FONT_DIR="/usr/share/fonts/nerdfonts"
+I3_CONFIG="$HOME/.config/i3/config"
+START_MARKER="# START_NERD_FONT"
+END_MARKER="# END_NERD_FONT"
+DOWNLOAD_PAGE="https://www.nerdfonts.com/font-downloads"
+
+# Function to list available fonts
+list_fonts() {
+  echo "Fetching available fonts from Nerd Fonts..."
+  wget -q -O - "$DOWNLOAD_PAGE" | grep -oP '(?<=<a href="https://github.com/ryanoasis/nerd-fonts/releases/download/)[^"]+\.zip' | sed 's/.*\///' | sed 's/\.zip//' | sort | uniq > /tmp/nerd_fonts_list.txt
+  
+  echo "Available Nerd Fonts:"
+  while read font; do
+    if [ -f "$FONT_DIR/$font.ttf" ] || [ -f "$FONT_DIR/$font.otf" ]; then
+      echo -e "\e[32m$font (downloaded)\e[0m"
+    else
+      echo "$font"
+    fi
+  done < /tmp/nerd_fonts_list.txt
+}
+
+# Function to install a font from a URL
+install_font() {
+  local font_name=$1
+  local font_url="https://github.com/ryanoasis/nerd-fonts/releases/download/v2.1.0/${font_name}.zip"
+  local zip_file="/tmp/${font_name}.zip"
+
+  # Ensure the script is run as root for this operation
+  if [ "$EUID" -ne 0 ]; then 
+    echo "Please run as root"
+    exit
+  fi
+
+  # Download the zip file
+  wget -O $zip_file $font_url
+
+  # Create nerdfonts directory if it doesn't exist
+  mkdir -p $FONT_DIR
+
+  # Extract the zip file to a temporary directory
+  local tmp_dir=$(mktemp -d)
+  unzip $zip_file -d $tmp_dir
+
+  # Move font files to the nerdfonts directory
+  find $tmp_dir -name "*.ttf" -exec mv {} $FONT_DIR \;
+  find $tmp_dir -name "*.otf" -exec mv {} $FONT_DIR \;
+
+  # Clean up
+  rm -rf $zip_file $tmp_dir
+
+  # Update font cache
+  fc-cache -fv
+
+  echo "Nerd Font installed successfully."
+}
+
+# Function to set xterm font
+set_xterm_font() {
+  local font_name=$1
+  echo -e "xterm*faceName: $font_name\nxterm*faceSize: 12" >> ~/.Xresources
+  xrdb -merge ~/.Xresources
+  echo "Xterm font set to $font_name"
+}
+
+# Function to set a font in i3 config
+set_font() {
+  local font_name=$1
+
+  # Ensure the script is run as root for this operation
+  if [ "$EUID" -ne 0 ]; then 
+    echo "Please run as root"
+    exit
+  fi
+
+  # Create a backup of the i3 config
+  cp $I3_CONFIG $I3_CONFIG.bak
+
+  # Remove old font settings
+  sed -i "/$START_MARKER/,/$END_MARKER/d" $I3_CONFIG
+
+  # Add new font settings
+  echo -e "$START_MARKER\nfont pango:$font_name 10\n$END_MARKER" >> $I3_CONFIG
+
+  # Reload i3 config
+  i3-msg reload
+
+  echo "i3 config updated with font: $font_name"
+  set_xterm_font "$font_name"
+}
+
+# Main logic
+case $1 in
+  list)
+    list_fonts
+    ;;
+  install)
+    if [ -z "$2" ]; then
+      echo "Usage: $0 install <Font_Name>"
+      exit 1
+    fi
+    install_font "$2"
+    ;;
+  set)
+    if [ -z "$2" ]; then
+      echo "Usage: $0 set <Font_Name>"
+      exit 1
+    fi
+    set_font "$2"
+    ;;
+  *)
+    echo "Usage: $0 {list|install <Font_Name>|set <Font_Name>}"
+    ;;
+esac
+
