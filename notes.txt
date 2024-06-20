@@ -1,0 +1,9 @@
+this needs to go into the config setup
+
+ctrl tilde is bad in vscode from dunst on i3. 
+it shows old notifications
+
+su vi /etc/xdg/dunst/dunstrc
+find 
+
+history = ctrl+grave and remove it
