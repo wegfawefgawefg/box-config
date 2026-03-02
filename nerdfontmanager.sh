@@ -153,11 +153,18 @@ main() {
       local zip_file=$(download_font "$font_url")
       install_font "$zip_file"
       ;;
+    set)
+      if [ -z "$2" ]; then
+        echo "Usage: $0 set <font_name>"
+        exit 1
+      fi
+      set_font "$2"
+      ;;
     choose)
       choose_font
       ;;
     *)
-      echo "Usage: $0 {list|install <font_name>|choose}"
+      echo "Usage: $0 {list|install <font_name>|set <font_name>|choose}"
       ;;
   esac
 }
